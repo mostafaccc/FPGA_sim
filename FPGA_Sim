@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMCW Radar - Blind Detection Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: Arial, sans-serif;
+background: #f0f0f0;
+padding: 10px;
+}
+.container {
+display: flex;
+gap: 10px;
+max-width: 1800px;
+margin: 0 auto;
+background: white;
+padding: 10px;
+border-radius: 5px;
+box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.left-panel {
+width: 400px;
+overflow-y: auto;
+max-height: 95vh;
+padding-right: 10px;
+}
+.right-panel {
+flex: 1;
+display: flex;
+flex-direction: column;
+}
+.section {
+background: #f9f9f9;
+border: 1px solid #ddd;
+border-radius: 5px;
+padding: 10px;
+margin-bottom: 10px;
+}
+.section h3 {
+background: #2c3e50;
+color: white;
+padding: 8px;
+margin: -10px -10px 10px -10px;
+border-radius: 5px 5px 0 0;
+font-size: 14px;
+}
+.param-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 8px;
+}
+.param-row label {
+font-size: 12px;
+width: 180px;
+}
+.param-row input, .param-row select {
+width: 150px;
+padding: 4px;
+border: 1px solid #ccc;
+border-radius: 3px;
+font-size: 12px;
+}
+button {
+width: 100%;
+padding: 10px;
+margin: 5px 0;
+background: #3498db;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+font-size: 13px;
+font-weight: bold;
+}
+button:hover {
+background: #2980b9;
+}
+.file-info {
+font-size: 11px;
+color: #555;
+padding: 5px;
+background: white;
+border-radius: 3px;
+margin-top: 5px;
+word-wrap: break-word;
+}
+.text-display {
+background: white;
+border: 1px solid #ccc;
+padding: 8px;
+font-family: 'Courier New', monospace;
+font-size: 11px;
+height: 150px;
+overflow-y: auto;
+white-space: pre-wrap;
+border-radius: 3px;
+}
+.text-display.tall {
+height: 250px;
+}
+.tabs {
+display: flex;
+background: #34495e;
+border-radius: 5px 5px 0 0;
+overflow: hidden;
+}
+.tab {
+flex: 1;
+padding: 12px;
+text-align: center;
+background: #34495e;
+color: white;
+cursor: pointer;
+border-right: 1px solid #2c3e50;
+font-weight: bold;
+}
+.tab:last-child {
+border-right: none;
+}
+.tab.active {
+background: #2c3e50;
+}
+.tab-content {
+display: none;
+padding: 15px;
+background: white;
+border: 1px solid #ddd;
+border-top: none;
+border-radius: 0 0 5px 5px;
+height: 700px;
+}
+.tab-content.active {
+display: block;
+}
+.chart-container {
+width: 100%;
+height: 650px;
+position: relative;
+}
+.status-indicator {
+display: inline-block;
+width: 10px;
+height: 10px;
+border-radius: 50%;
+margin-right: 5px;
+}
+.status-indicator.ready {
+background: #27ae60;
+}
+.status-indicator.processing {
+background: #f39c12;
+animation: pulse 1s infinite;
+}
+@keyframes pulse {
+0%, 100% { opacity: 1; }
+50% { opacity: 0.3; }
+}
+.header {
+background: #2c3e50;
+color: white;
+padding: 15px;
+margin: -10px -10px 10px -10px;
+border-radius: 5px 5px 0 0;
+}
+.header h1 {
+font-size: 20px;
+margin-bottom: 5px;
+}
+.header p {
+font-size: 12px;
+opacity: 0.8;
+}
+.progress-bar {
+width: 100%;
+height: 20px;
+background: #ecf0f1;
+border-radius: 10px;
+overflow: hidden;
+margin: 10px 0;
+display: none;
+}
+.progress-bar-fill {
+height: 100%;
+background: #3498db;
+width: 0%;
+transition: width 0.3s;
+text-align: center;
+color: white;
+font-size: 11px;
+line-height: 20px;
+}
+.warning {
+background: #fff3cd;
+border: 1px solid #ffc107;
+padding: 10px;
+border-radius: 5px;
+margin: 10px 0;
+font-size: 12px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="left-panel">
+<div class="header">
+<h1>FMCW Radar Blind Detection</h1>
+<p>Pure Signal Processing - No Ground Truth</p>
+</div>
+<div class="warning">
+<strong>Blind Processing Mode:</strong> This simulator performs true blind detection without any ground truth information. Chirp synchronization and target detection are based solely on signal processing.
+</div>
+<div class="section">
+<h3>Data Input</h3>
+<input type="file" id="binFile" accept=".bin">
+<button onclick="loadBinFile()">Load .bin File</button>
+<div class="file-info" id="fileInfo">No file loaded</div>
+</div>
+<div class="section">
+<h3>Radar Parameters</h3>
+<div class="param-row">
+<label>Center Freq (GHz):</label>
+<input type="number" id="fc" value="0.230" step="0.001">
+</div>
+<div class="param-row">
+<label>Bandwidth (MHz):</label>
+<input type="number" id="B" value="1" step="0.1">
+</div>
+<div class="param-row">
+<label>Chirp Duration (us):</label>
+<input type="number" id="Tch" value="1670" step="10">
+</div>
+<div class="param-row">
+<label>Sample Rate (MHz):</label>
+<input type="number" id="fs" value="125" step="1">
+</div>
+<div class="param-row">
+<label>ADC Bits:</label>
+<input type="number" id="adc_bits" value="14" step="1">
+</div>
+<div class="param-row">
+<label>Num Chirps:</label>
+<input type="number" id="num_chirps" value="80" step="1">
+</div>
+<div class="param-row">
+<label>Chirp Mode:</label>
+<select id="chirp_mode">
+<option value="triangular" selected>Triangular</option>
+<option value="sawtooth">Sawtooth</option>
+</select>
+</div>
+<div class="param-row">
+<label>ADC Full Scale (V):</label>
+<input type="number" id="adc_vref" value="2.0" step="0.1">
+</div>
+</div>
+<div class="section">
+<h3>Link Budget</h3>
+<div class="param-row">
+<label>Tx Power (dBm):</label>
+<input type="number" id="Pt_dBm" value="83.9" step="0.1">
+</div>
+<div class="param-row">
+<label>Tx Gain (dBi):</label>
+<input type="number" id="Gt_dBi" value="33.7" step="0.1">
+</div>
+<div class="param-row">
+<label>Rx Gain (dBi):</label>
+<input type="number" id="Gr_dBi" value="15.0" step="0.1">
+</div>
+<div class="param-row">
+<label>System Loss (dB):</label>
+<input type="number" id="Loss_dB" value="16.0" step="0.1">
+</div>
+</div>
+<div class="section">
+<h3>Processing Parameters</h3>
+<div class="param-row">
+<label>FFT Size (Range):</label>
+<input type="number" id="fft_size" value="4096" step="512">
+</div>
+<div class="param-row">
+<label>Max Peaks:</label>
+<input type="number" id="num_peaks" value="10" step="1">
+</div>
+<div class="param-row">
+<label>Min Peak Sep (m):</label>
+<input type="number" id="min_sep" value="0.5" step="0.1">
+</div>
+<div class="param-row">
+<label>Max Plot Range (m):</label>
+<input type="number" id="max_plot_range" value="35000" step="1000">
+</div>
+<div class="param-row">
+<label>Max Velocity (m/s):</label>
+<input type="number" id="v_max" value="200" step="10">
+</div>
+<div class="param-row">
+<label>SNR Margin (dB):</label>
+<input type="number" id="snr_margin_db" value="25" step="1">
+</div>
+<div class="param-row">
+<label>Range Window:</label>
+<select id="window_type">
+<option value="hamming">Hamming</option>
+<option value="hann">Hann</option>
+<option value="blackman" selected>Blackman</option>
+<option value="bartlett">Bartlett</option>
+<option value="rect">Rectangle</option>
+</select>
+</div>
+<div class="param-row">
+<label>Sync Strategy:</label>
+<select id="sync_method">
+<option value="auto" selected>Auto (Tiered Fallback)</option>
+<option value="phase">Phase Reset Only</option>
+<option value="energy">Energy Envelope Only</option>
+<option value="template">Template Matching Only</option>
+</select>
+</div>
+</div>
+<div class="section">
+<h3>Processing</h3>
+<div class="progress-bar" id="progressBar">
+<div class="progress-bar-fill" id="progressFill">0%</div>
+</div>
+<button onclick="processRadar()">
+<span class="status-indicator ready" id="statusIndicator"></span>
+Blind Detection
+</button>
+<button onclick="saveReport()">Save Report</button>
+</div>
+<div class="section">
+<h3>Detection Results</h3>
+<div class="text-display tall" id="resultsDisplay">Blind Detection Simulator Ready
+Load .bin file to begin...</div>
+</div>
+</div>
+<div class="right-panel">
+<div class="tabs">
+<div class="tab active" onclick="switchTab(0)">Range Profile</div>
+<div class="tab" onclick="switchTab(1)">Range-Doppler Map</div>
+</div>
+<div class="tab-content active">
+<div class="chart-container">
+<canvas id="rangeChart"></canvas>
+</div>
+</div>
+<div class="tab-content">
+<div class="chart-container">
+<canvas id="rdmChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+<script>
+"use strict";
+const AppState = {
+binData: null,
+params: null,
+worker: null,
+workerURL: null,
+charts: {
+range: null,
+rdm: null
+}
+};
+const rangeCtx = document.getElementById('rangeChart').getContext('2d');
+const rdmCtx = document.getElementById('rdmChart').getContext('2d');
+function switchTab(index) {
+const tabs = document.querySelectorAll('.tab');
+const contents = document.querySelectorAll('.tab-content');
+tabs.forEach((tab, i) => {
+if (i === index) {
+tab.classList.add('active');
+contents[i].classList.add('active');
+} else {
+tab.classList.remove('active');
+contents[i].classList.remove('active');
+}
+});
+}
+function logStatus(message) {
+const now = new Date();
+const timestamp = now.toTimeString().split(' ')[0];
+const display = document.getElementById('resultsDisplay');
+display.textContent += `[${timestamp}] ${message}
+`;
+display.scrollTop = display.scrollHeight;
+}
+function loadBinFile() {
+const fileInput = document.getElementById('binFile');
+const file = fileInput.files[0];
+if (!file) {
+alert('Please select a .bin file');
+return;
+}
+const reader = new FileReader();
+reader.onload = function(e) {
+AppState.binData = new Int16Array(e.target.result);
+document.getElementById('fileInfo').textContent =
+`Loaded: ${file.name}
+${AppState.binData.length} samples (${AppState.binData.length/2} complex)`;
+logStatus(`Loaded ${file.name}: ${AppState.binData.length} samples`);
+};
+reader.readAsArrayBuffer(file);
+}
+function collectParamsSI() {
+return {
+fc_Hz: Number(document.getElementById('fc').value) * 1e9,
+B_Hz: Number(document.getElementById('B').value) * 1e6,
+Tch_s: Number(document.getElementById('Tch').value) * 1e-6,
+fs_Hz: Number(document.getElementById('fs').value) * 1e6,
+adc_bits: Number(document.getElementById('adc_bits').value),
+adc_vref: Number(document.getElementById('adc_vref').value),
+num_chirps: Number(document.getElementById('num_chirps').value),
+chirp_mode: document.getElementById('chirp_mode').value,
+Pt_dBm: Number(document.getElementById('Pt_dBm').value),
+Gt_dBi: Number(document.getElementById('Gt_dBi').value),
+Gr_dBi: Number(document.getElementById('Gr_dBi').value),
+Loss_dB: Number(document.getElementById('Loss_dB').value),
+fft_size: Number(document.getElementById('fft_size').value),
+num_peaks: Number(document.getElementById('num_peaks').value),
+min_sep_m: Number(document.getElementById('min_sep').value),
+max_plot_range_m: Number(document.getElementById('max_plot_range').value),
+v_max_mps: Number(document.getElementById('v_max').value),
+snr_margin_db: Number(document.getElementById('snr_margin_db').value),
+window_type: document.getElementById('window_type').value,
+sync_method: document.getElementById('sync_method').value
+};
+}
+function isPowerOfTwo(x) {
+return (x & (x - 1)) === 0;
+}
+function validateRun(params) {
+if (!AppState.binData || (AppState.binData.length % 2) !== 0) {
+alert("Binary must contain interleaved int16 I,Q samples (even length).");
+return false;
+}
+if (!(params.fc_Hz > 0 && params.B_Hz > 0 && params.Tch_s > 0 && params.fs_Hz > 0)) {
+alert("Invalid radar parameters (fc, B, Tch, fs).");
+return false;
+}
+const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+if (samplesPerChirp < 8) {
+alert("Chirp duration or sample rate produce <8 samples per chirp; increase fs or Tch.");
+return false;
+}
+const nComplex = AppState.binData.length / 2;
+if (nComplex < samplesPerChirp) {
+alert(`File too short: need at least ${samplesPerChirp} complex samples for one chirp.`);
+return false;
+}
+if (!isPowerOfTwo(params.fft_size)) {
+const old = params.fft_size;
+let p = 1;
+while (p < params.fft_size) p <<= 1;
+params.fft_size = p;
+logStatus(`FFT size ${old} -> adjusted to next power-of-two ${p}`);
+}
+if (params.fft_size < samplesPerChirp) {
+logStatus(`FFT size ${params.fft_size} increased to match samples per chirp ${samplesPerChirp}`);
+params.fft_size = Math.max(params.fft_size, 1<<Math.ceil(Math.log2(samplesPerChirp)));
+}
+return true;
+}
+function processRadar() {
+if (!AppState.binData) {
+alert('Please load a .bin file first');
+return;
+}
+initDSPWorker();
+AppState.params = collectParamsSI();
+if (!validateRun(AppState.params)) {
+return;
+}
+const indicator = document.getElementById('statusIndicator');
+indicator.className = 'status-indicator processing';
+const progressBar = document.getElementById('progressBar');
+progressBar.style.display = 'block';
+updateProgress(0);
+logStatus('Starting Blind Radar Detection (Worker)...');
+const abCopy = AppState.binData.buffer.slice(0);
+AppState.worker.postMessage(
+{
+buffer: abCopy,
+params: AppState.params
+},
+[abCopy]
+);
+}
+function updateProgress(percent) {
+const bar = document.getElementById('progressBar');
+if (bar.style.display !== 'block') {
+bar.style.display = 'block';
+}
+const progressFill = document.getElementById('progressFill');
+progressFill.style.width = percent + '%';
+progressFill.textContent = percent + '%';
+}
+function displayResults(results) {
+const indicator = document.getElementById('statusIndicator');
+const progressBar = document.getElementById('progressBar');
+progressBar.style.display = 'none';
+
+// Clear previous results
+const display = document.getElementById('resultsDisplay');
+display.textContent = '';
+
+logStatus('╔════════════════════════════════════════════════╗');
+logStatus('║ CHIRP BOUNDARY DETECTION RESULTS ║');
+logStatus('╚════════════════════════════════════════════════╝');
+logStatus('');
+logStatus(`Detection Method: ${results.sync_method.toUpperCase()}`);
+logStatus(`Confidence: ${(results.sync_confidence * 100).toFixed(1)}%`);
+logStatus(`Chirps Detected: ${results.num_chirps_detected}`);
+logStatus(`First Chirp Offset: ${results.sync_offset} samples`);
+logStatus(`Expected Samples/Chirp: ${results.samples_per_chirp_expected}`);
+logStatus(`Actual Samples/Chirp: ${results.samples_per_chirp_actual}`);
+
+if (Math.abs(results.samples_per_chirp_actual - results.samples_per_chirp_expected) > 
+results.samples_per_chirp_expected * 0.1) {
+logStatus('⚠️ Warning: Actual chirp length differs from expected!');
+}
+
+logStatus('');
+logStatus('Chirp Boundaries (first 10):');
+const showBoundaries = Math.min(10, results.chirp_boundaries.length);
+for (let i = 0; i < showBoundaries; i++) {
+const boundary = results.chirp_boundaries[i];
+const chirpLength = i > 0 ? boundary - results.chirp_boundaries[i-1] : 'N/A';
+logStatus(` Chirp ${i}: Sample ${boundary} (length: ${chirpLength})`);
+}
+
+if (results.chirp_boundaries.length > 10) {
+logStatus(` ... and ${results.chirp_boundaries.length - 10} more boundaries`);
+}
+
+logStatus('');
+
+// Only show target info if we have targets (for backward compatibility)
+if (results.targets && results.targets.length > 0) {
+logStatus(`Detected ${results.targets.length} targets:`);
+results.targets.forEach((t, i) => {
+logStatus(`T${i+1}: R=${t.range.toFixed(2)}m, V=${t.velocity >= 0 ? '+' : ''}${t.velocity.toFixed(2)}m/s, ` +
+`RCS=${t.rcs_m2.toExponential(3)}m2, SNR=${t.snr_db.toFixed(1)}dB`);
+});
+}
+
+// Update visualization
+updateChirpVisualization(results);
+
+indicator.className = 'status-indicator ready';
+}
+function updateChirpVisualization(results) {
+if (AppState.charts.range) {
+AppState.charts.range.destroy();
+}
+
+// Create annotations for chirp boundaries
+const annotations = {};
+if (results.boundary_markers && results.boundary_markers.length > 0) {
+results.boundary_markers.forEach((marker, i) => {
+annotations[`chirp${i}`] = {
+type: 'line',
+xMin: marker.x,
+xMax: marker.x,
+borderColor: results.sync_method.includes('phase') ? 'rgba(255, 99, 132, 0.8)' :
+results.sync_method.includes('energy') ? 'rgba(54, 162, 235, 0.8)' :
+'rgba(255, 206, 86, 0.8)',
+borderWidth: 2,
+label: {
+display: i < 5, // Only label first 5
+content: `Chirp ${i}`,
+position: 'top',
+backgroundColor: results.sync_method.includes('phase') ? 'rgba(255, 99, 132, 0.8)' :
+results.sync_method.includes('energy') ? 'rgba(54, 162, 235, 0.8)' :
+'rgba(255, 206, 86, 0.8)',
+color: 'white',
+font: { size: 10 }
+}
+};
+});
+}
+
+AppState.charts.range = new Chart(rangeCtx, {
+type: 'line',
+ {
+datasets: [{
+label: 'IQ Signal Magnitude (scaled)',
+ results.signal_plot,
+borderColor: 'rgba(75, 192, 192, 0.6)',
+borderWidth: 1,
+pointRadius: 0,
+fill: false,
+tension: 0.1
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+plugins: {
+title: {
+display: true,
+text: `Chirp Boundary Detection (${results.sync_method} - ${(results.sync_confidence * 100).toFixed(1)}% confidence)`,
+font: { size: 16 }
+},
+legend: {
+display: true
+},
+annotation: {
+annotations: annotations
+},
+tooltip: {
+callbacks: {
+label: function(context) {
+return `Sample: ${context.raw.x}, Magnitude: ${context.raw.y.toFixed(2)}`;
+}
+}
+}
+},
+scales: {
+x: {
+title: {
+display: true,
+text: 'Sample Index'
+}
+},
+y: {
+title: {
+display: true,
+text: 'Signal Magnitude (scaled)'
+},
+beginAtZero: true
+}
+}
+}
+});
+
+// Update tab label
+document.querySelector('.tab').textContent = 'Chirp Detection';
+}
+function updateRangePlot(rangeData, targets) {
+if (AppState.charts.range) {
+AppState.charts.range.destroy();
+}
+const annotations = {};
+targets.forEach((target, i) => {
+annotations[`target${i}`] = {
+type: 'point',
+xValue: target.range,
+yValue: target.power_db,
+backgroundColor: 'rgba(255, 99, 132, 0.5)',
+borderColor: 'rgb(255, 99, 132)',
+borderWidth: 2,
+radius: 8
+};
+});
+AppState.charts.range = new Chart(rangeCtx, {
+type: 'line',
+ {
+labels: rangeData.ranges,
+datasets: [{
+label: 'Range Profile',
+ rangeData.profile,
+borderColor: 'rgb(75, 192, 192)',
+borderWidth: 1.5,
+pointRadius: 0,
+fill: false
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+plugins: {
+title: {
+display: true,
+text: 'Range Profile (Blind Detection)',
+font: { size: 16 }
+},
+legend: {
+display: true
+},
+annotation: {
+annotations: annotations
+}
+},
+scales: {
+x: {
+title: {
+display: true,
+text: 'Range (m)'
+},
+ticks: {
+maxTicksLimit: 10
+}
+},
+y: {
+title: {
+display: true,
+text: 'Magnitude (dB)'
+}
+}
+}
+}
+});
+}
+function updateRDMPlot(rdmData, targets) {
+if (AppState.charts.rdm) {
+AppState.charts.rdm.destroy();
+}
+const annotations = {};
+targets.forEach((target, i) => {
+annotations[`target${i}`] = {
+type: 'point',
+xValue: target.range,
+yValue: target.velocity,
+backgroundColor: 'rgba(255, 255, 255, 0.8)',
+borderColor: 'rgb(255, 0, 0)',
+borderWidth: 3,
+radius: 10
+};
+});
+AppState.charts.rdm = new Chart(rdmCtx, {
+type: 'scatter',
+ {
+datasets: [{
+label: 'Range-Doppler Map',
+ rdmData.points,
+backgroundColor: function(context) {
+const value = context.raw.v;
+const normalized = (value + 80) / 60;
+const clamped = Math.max(0, Math.min(1, normalized));
+const r = Math.max(0, Math.min(255, Math.round(255 * (1.5 - Math.abs(clamped * 4 - 3)))));
+const g = Math.max(0, Math.min(255, Math.round(255 * (1.5 - Math.abs(clamped * 4 - 2)))));
+const b = Math.max(0, Math.min(255, Math.round(255 * (1.5 - Math.abs(clamped * 4 - 1)))));
+return `rgba(${r}, ${g}, ${b}, 0.8)`;
+},
+pointRadius: 2,
+pointHoverRadius: 2
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+plugins: {
+title: {
+display: true,
+text: 'Range-Doppler Map (Blind Detection)',
+font: { size: 16 }
+},
+legend: {
+display: false
+},
+annotation: {
+annotations: annotations
+},
+tooltip: {
+callbacks: {
+label: function(context) {
+return `R: ${context.raw.x.toFixed(0)}m, V: ${context.raw.y.toFixed(1)}m/s, Mag: ${context.raw.v.toFixed(1)}dB`;
+}
+}
+}
+},
+scales: {
+x: {
+title: {
+display: true,
+text: 'Range (m)'
+}
+},
+y: {
+title: {
+display: true,
+text: 'Velocity (m/s)'
+}
+}
+}
+}
+});
+}
+function saveReport() {
+logStatus('Report save requested');
+}
+function initDSPWorker() {
+if (AppState.worker) return;
+const workerCode = `
+"use strict";
+// Constants for detection
+const DETECTION_CONSTANTS = {
+ MIN_CHIRP_RATIO: 0.5,
+ MAX_CHIRP_RATIO: 1.5,
+ PHASE_RESET_THRESHOLD: Math.PI * 0.7, // Reduced as per reviewer
+ TEMPLATE_CORR_THRESHOLD: 0.3,
+ MIN_CHIRP_GAP_FACTOR: 0.8,
+ MAX_JITTER_SAMPLES: 10,
+ MAX_FFT_SIZE: 1 << 20, // Limit FFT size to prevent memory issues
+ TEMPLATE_VALIDATION_THRESHOLD: 0.25, // Per-chirp validation threshold
+ PHASE_JUMP_THRESHOLD: Math.PI * 0.7 // Threshold for phase reset detection
+};
+function int16IQToFloat(int16, adcBits) {
+ const n = int16.length >> 1;
+ const scale = 1.0 / (Math.pow(2, adcBits - 1));
+ const re = new Float32Array(n);
+ const im = new Float32Array(n);
+ for (let i = 0, j = 0; i < n; i++, j += 2) {
+ re[i] = int16[j] * scale;
+ im[i] = int16[j+1] * scale;
+ }
+ return { re, im };
+}
+// Efficient phase unwrapping (optimized)
+function unwrapPhase(phase) {
+ const n = phase.length;
+ const unwrapped = new Float32Array(n);
+ unwrapped[0] = phase[0];
+ let cumulativeAdjust = 0;
+ 
+ for (let i = 1; i < n; i++) {
+ let diff = phase[i] - phase[i-1];
+ if (diff > Math.PI) {
+ cumulativeAdjust -= 2 * Math.PI;
+ } else if (diff < -Math.PI) {
+ cumulativeAdjust += 2 * Math.PI;
+ }
+ unwrapped[i] = phase[i] + cumulativeAdjust;
+ }
+ return unwrapped;
+}
+// METHOD 1: Fixed Phase Reset Detection (REVIEWER'S VERSION)
+function detectChirpsByPhaseReset(re, im, params) {
+ const n = re.length;
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ const minChirpGap = Math.floor(samplesPerChirp * DETECTION_CONSTANTS.MIN_CHIRP_GAP_FACTOR);
+ 
+ // Compute instantaneous phase
+ const phase = new Float32Array(n);
+ for (let i = 0; i < n; i++) {
+ phase[i] = Math.atan2(im[i], re[i]);
+ }
+ 
+ // Unwrap phase
+ const unwrapped = unwrapPhase(phase);
+ 
+ // Compute instantaneous frequency (for triangular chirp detection)
+ const instFreq = new Float32Array(n - 1);
+ for (let i = 1; i < n; i++) {
+ instFreq[i-1] = unwrapped[i] - unwrapped[i-1];
+ }
+ 
+ const boundaries = [0];
+ let lastBoundary = 0;
+ 
+ // threshold in radians — a jump near pi (or > 2.0 rad) is suspicious
+ const phaseJumpThreshold = DETECTION_CONSTANTS.PHASE_JUMP_THRESHOLD;
+ 
+ for (let i = 1; i < n; i++) {
+ const d = Math.abs(unwrapped[i] - unwrapped[i-1]);
+ 
+ // Check for phase reset (large jump)
+ let isPhaseReset = d > phaseJumpThreshold;
+ 
+ // For triangular chirps, also check for slope reversal (sign change in inst freq)
+ let isSlopeReversal = false;
+ if (params.chirp_mode === 'triangular' && i > 1) {
+ const prevFreq = instFreq[i-2];
+ const currFreq = instFreq[i-1];
+ if (prevFreq !== 0 && currFreq !== 0 && (prevFreq > 0) !== (currFreq > 0)) {
+ isSlopeReversal = true;
+ }
+ }
+ 
+ if ((isPhaseReset || isSlopeReversal) && (i - lastBoundary) >= minChirpGap) {
+ boundaries.push(i);
+ lastBoundary = i;
+ }
+ }
+ 
+ // compute simple confidence: how regular are intervals
+ let confidence = 0.0;
+ if (boundaries.length > 2) {
+ const intervals = [];
+ for (let i = 1; i < boundaries.length; i++) {
+ intervals.push(boundaries[i] - boundaries[i-1]);
+ }
+ const mean = intervals.reduce((a,b) => a + b) / intervals.length;
+ const variance = intervals.reduce((a,b) => a + Math.pow(b - mean, 2), 0) / intervals.length;
+ const regularity = 1.0 / (1.0 + Math.sqrt(variance) / mean);
+ confidence = Math.min(1.0, regularity * 0.9 + (boundaries.length / (n / samplesPerChirp)) * 0.1);
+ }
+ 
+ return { 
+ boundaries: boundaries, 
+ method: 'phase_reset', 
+ confidence: confidence 
+ };
+}
+// METHOD 2: Energy Envelope Detection (Fixed windowSize)
+function detectChirpsByEnergy(re, im, params) {
+ const n = re.length;
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ 
+ // Compute energy envelope with safe window size
+ const energy = new Float32Array(n);
+ const windowSize = Math.max(4, Math.floor(samplesPerChirp / 20)); // FIXED: Ensure minimum
+ 
+ for (let i = 0; i < n; i++) {
+ let sum = 0;
+ let count = 0;
+ const start = Math.max(0, i - windowSize);
+ const end = Math.min(n, i + windowSize);
+ 
+ for (let j = start; j < end; j++) {
+ sum += re[j] * re[j] + im[j] * im[j];
+ count++;
+ }
+ energy[i] = count > 0 ? sum / count : 0;
+ }
+ 
+ // Simple autocorrelation for periodicity (simplified)
+ const maxLag = Math.floor(samplesPerChirp * 2);
+ const minLag = Math.floor(samplesPerChirp * 0.5);
+ 
+ let bestLag = samplesPerChirp;
+ let bestCorr = 0;
+ 
+ // Use subsampled autocorrelation for speed
+ for (let lag = minLag; lag < maxLag; lag += 5) {
+ let corr = 0;
+ let count = 0;
+ 
+ for (let i = 0; i < n - lag; i += 10) {
+ corr += energy[i] * energy[i + lag];
+ count++;
+ }
+ 
+ corr = count > 0 ? corr / count : 0;
+ if (corr > bestCorr) {
+ bestCorr = corr;
+ bestLag = lag;
+ }
+ }
+ 
+ // Generate boundaries based on detected period
+ const boundaries = [];
+ let nextBoundary = 0;
+ 
+ while (nextBoundary < n) {
+ boundaries.push(nextBoundary);
+ nextBoundary += bestLag;
+ 
+ // Refine boundary by finding local energy minimum near expected position
+ if (nextBoundary < n) {
+ let minEnergy = Infinity;
+ let minIdx = nextBoundary;
+ const searchRange = Math.floor(bestLag * 0.1);
+ const startSearch = Math.max(0, nextBoundary - searchRange);
+ const endSearch = Math.min(n, nextBoundary + searchRange);
+ 
+ for (let i = startSearch; i < endSearch; i++) {
+ if (energy[i] < minEnergy) {
+ minEnergy = energy[i];
+ minIdx = i;
+ }
+ }
+ nextBoundary = minIdx;
+ }
+ }
+ 
+ return {
+ boundaries: boundaries,
+ method: 'energy_envelope',
+ confidence: bestCorr,
+ detectedPeriod: bestLag
+ };
+}
+// ITERATIVE RADIX-2 FFT (REVIEWER'S VERSION - O(N log N))
+// iterative radix-2 complex FFT (in-place using separate arrays)
+function fftIter(real, imag, inv = false) {
+ const n = real.length;
+ if ((n & (n - 1)) !== 0) throw new Error('FFT size must be power of two');
+ 
+ // bit reversal
+ let j = 0;
+ for (let i = 1; i < n; i++) {
+ let bit = n >> 1;
+ while (j & bit) {
+ j ^= bit;
+ bit >>= 1;
+ }
+ j ^= bit;
+ if (i < j) {
+ [real[i], real[j]] = [real[j], real[i]];
+ [imag[i], imag[j]] = [imag[j], imag[i]];
+ }
+ }
+ 
+ // Danielson-Lanczos
+ for (let len = 2; len <= n; len <<= 1) {
+ const ang = 2 * Math.PI / len * (inv ? -1 : 1);
+ const wlen_r = Math.cos(ang);
+ const wlen_i = Math.sin(ang);
+ 
+ for (let i = 0; i < n; i += len) {
+ let wr = 1, wi = 0;
+ for (let j = 0; j < len / 2; j++) {
+ const u_r = real[i + j];
+ const u_i = imag[i + j];
+ const v_r = real[i + j + len / 2] * wr - imag[i + j + len / 2] * wi;
+ const v_i = real[i + j + len / 2] * wi + imag[i + j + len / 2] * wr;
+ 
+ real[i + j] = u_r + v_r;
+ imag[i + j] = u_i + v_i;
+ real[i + j + len / 2] = u_r - v_r;
+ imag[i + j + len / 2] = u_i - v_i;
+ 
+ // update w: w *= wlen
+ const tmp = wr * wlen_r - wi * wlen_i;
+ wi = wr * wlen_i + wi * wlen_r;
+ wr = tmp;
+ }
+ }
+ }
+ 
+ // scale if inverse
+ if (inv) {
+ for (let i = 0; i < n; i++) {
+ real[i] /= n;
+ imag[i] /= n;
+ }
+ }
+ 
+ return { real, imag };
+}
+// wrappers for FFT
+function simpleFFT(realIn, imagIn) {
+ // copy to avoid in-place destruction
+ const n = realIn.length;
+ const r = new Float32Array(n);
+ r.set(realIn);
+ const im = new Float32Array(n);
+ im.set(imagIn);
+ return fftIter(r, im, false);
+}
+function inverseFFT(realIn, imagIn) {
+ const n = realIn.length;
+ const r = new Float32Array(n);
+ r.set(realIn);
+ const im = new Float32Array(n);
+ im.set(imagIn);
+ const res = fftIter(r, im, true);
+ // return real output (complex result represented as Float32Array of length n)
+ const out = new Float32Array(n);
+ for (let i = 0; i < n; i++) {
+ out[i] = res.real[i]; // when used for correlation, we used real parts
+ }
+ return out;
+}
+// METHOD 3: Template Matching with FIXED FFT, Auto-Decimation, and Proper Correlation
+function detectChirpsByTemplate(re, im, params) {
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ const n = re.length;
+ 
+ // Auto-decimate if signal would cause large FFT
+ let decimation = 1;
+ let decimated_re = re;
+ let decimated_im = im;
+ let decimated_n = n;
+ let decimated_samplesPerChirp = samplesPerChirp;
+ 
+ if ((n + samplesPerChirp - 1) > DETECTION_CONSTANTS.MAX_FFT_SIZE) {
+ decimation = Math.ceil((n + samplesPerChirp - 1) / DETECTION_CONSTANTS.MAX_FFT_SIZE);
+ decimated_n = Math.floor(n / decimation);
+ decimated_samplesPerChirp = Math.round(samplesPerChirp / decimation);
+ decimated_re = new Float32Array(decimated_n);
+ decimated_im = new Float32Array(decimated_n);
+ 
+ for (let k = 0, i = 0; k < decimated_n; k++, i += decimation) {
+ decimated_re[k] = re[i];
+ decimated_im[k] = im[i];
+ }
+ 
+ self.postMessage({ type: 'progress', percent: 25, msg: \`Template matching: auto-decimated by factor \${decimation}\` });
+ }
+ 
+ // Generate reference chirp template
+ const template_re = new Float32Array(decimated_samplesPerChirp);
+ const template_im = new Float32Array(decimated_samplesPerChirp);
+ const chirpSlope = params.B_Hz / params.Tch_s;
+ 
+ for (let i = 0; i < decimated_samplesPerChirp; i++) {
+ const t = (i * decimation) / params.fs_Hz; // Account for decimation in time
+ const phase = 2 * Math.PI * chirpSlope * t * t / 2;
+ template_re[i] = Math.cos(phase);
+ template_im[i] = Math.sin(phase);
+ }
+ 
+ // Apply window function to template (Hann window)
+ for (let i = 0; i < decimated_samplesPerChirp; i++) {
+ const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (decimated_samplesPerChirp - 1)));
+ template_re[i] *= window;
+ template_im[i] *= window;
+ }
+ 
+ // Normalize template
+ let templateNorm = 0;
+ for (let i = 0; i < decimated_samplesPerChirp; i++) {
+ templateNorm += template_re[i] * template_re[i] + template_im[i] * template_im[i];
+ }
+ templateNorm = Math.sqrt(templateNorm);
+ 
+ if (templateNorm > 0) {
+ for (let i = 0; i < decimated_samplesPerChirp; i++) {
+ template_re[i] /= templateNorm;
+ template_im[i] /= templateNorm;
+ }
+ }
+ 
+ // Compute cross-correlation using FFT with proper canonical approach
+ const fftSize = 1 << Math.ceil(Math.log2(decimated_n + decimated_samplesPerChirp - 1));
+ 
+ // Prepare FFT buffers
+ const signalReal = new Float32Array(fftSize);
+ const signalImag = new Float32Array(fftSize);
+ const templateReal = new Float32Array(fftSize);
+ const templateImag = new Float32Array(fftSize);
+ 
+ // Copy decimated signal data (with Hann window applied)
+ for (let i = 0; i < decimated_n; i++) {
+ const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (decimated_n - 1)));
+ signalReal[i] = decimated_re[i] * window;
+ signalImag[i] = decimated_im[i] * window;
+ }
+ 
+ // --- copy template normally (no reverse) ---
+ for (let i = 0; i < decimated_samplesPerChirp; i++) {
+ templateReal[i] = template_re[i];
+ templateImag[i] = template_im[i];
+ }
+ // zero-padding already present
+ 
+ // FFTs
+ const fftSignal = simpleFFT(signalReal, signalImag);
+ const fftTemplate = simpleFFT(templateReal, templateImag);
+ 
+ // product = FFT(signal) * conj(FFT(template))
+ const productReal = new Float32Array(fftSize);
+ const productImag = new Float32Array(fftSize);
+ 
+ for (let i = 0; i < fftSize; i++) {
+ const Ar = fftSignal.real[i], Ai = fftSignal.imag[i];
+ const Br = fftTemplate.real[i], Bi = fftTemplate.imag[i];
+ productReal[i] = Ar * Br + Ai * Bi;
+ productImag[i] = Ai * Br - Ar * Bi;
+ }
+ 
+ // Inverse FFT to get correlation
+ const correlation = inverseFFT(productReal, productImag);
+ 
+ // Find peaks in correlation
+ const minPeakDistance = Math.floor(decimated_samplesPerChirp * 0.7);
+ const boundaries = [];
+ 
+ // Adaptive threshold
+ let maxCorr = 0;
+ for (let i = 0; i < correlation.length; i++) {
+ if (correlation[i] > maxCorr) maxCorr = correlation[i];
+ }
+ const threshold = DETECTION_CONSTANTS.TEMPLATE_CORR_THRESHOLD * maxCorr;
+ 
+ // Peak detection with non-maximum suppression
+ for (let i = minPeakDistance; i < correlation.length - minPeakDistance; i++) {
+ if (correlation[i] > threshold) {
+ let isPeak = true;
+ 
+ // Check if this is a local maximum within minPeakDistance/2
+ for (let j = i - Math.floor(minPeakDistance / 2); j <= i + Math.floor(minPeakDistance / 2); j++) {
+ if (j !== i && correlation[j] >= correlation[i]) {
+ isPeak = false;
+ break;
+ }
+ }
+ 
+ if (isPeak && (boundaries.length === 0 || 
+ (i - boundaries[boundaries.length - 1]) >= minPeakDistance)) {
+ boundaries.push(i - decimated_samplesPerChirp + 1); // Adjust for template offset
+ }
+ }
+ }
+ 
+ // Scale boundaries back to original sample indices
+ for (let i = 0; i < boundaries.length; i++) {
+ boundaries[i] *= decimation;
+ }
+ 
+ // Calculate confidence using normalized peak metric
+ // compute peak and RMS of correlation
+ let peak = -Infinity, sumSq = 0;
+ for (let i = 0; i < correlation.length; i++) {
+ const v = correlation[i];
+ if (v > peak) peak = v;
+ sumSq += v * v;
+}
+const rms = Math.sqrt(sumSq / correlation.length) || 1e-12;
+const rawScore = peak / (rms * 4); // divisor tuneable (4..8)
+const confidence = Math.max(0, Math.min(1, rawScore));
+ 
+ return {
+ boundaries: boundaries,
+ method: 'template_matching',
+ confidence: confidence,
+ correlation: correlation.slice(0, Math.min(1000, correlation.length))
+ };
+}
+// Per-chirp validation function
+function validateChirpBoundaries(re, im, boundaries, params) {
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s);
+ const n = re.length;
+ 
+ // Generate reference template for validation
+ const template_re = new Float32Array(samplesPerChirp);
+ const template_im = new Float32Array(samplesPerChirp);
+ const chirpSlope = params.B_Hz / params.Tch_s;
+ 
+ for (let i = 0; i < samplesPerChirp; i++) {
+ const t = i / params.fs_Hz;
+ const phase = 2 * Math.PI * chirpSlope * t * t / 2;
+ template_re[i] = Math.cos(phase);
+ template_im[i] = Math.sin(phase);
+ }
+ 
+ // Normalize template
+ let templateNorm = 0;
+ for (let i = 0; i < samplesPerChirp; i++) {
+ templateNorm += template_re[i] * template_re[i] + template_im[i] * template_im[i];
+ }
+ templateNorm = Math.sqrt(templateNorm);
+ 
+ if (templateNorm > 0) {
+ for (let i = 0; i < samplesPerChirp; i++) {
+ template_re[i] /= templateNorm;
+ template_im[i] /= templateNorm;
+ }
+ }
+ 
+ const goodBoundaries = [];
+ const tol = Math.floor(samplesPerChirp * 0.2); // allow small shifts
+ for (let b of boundaries) {
+ if (b + samplesPerChirp > n) break;
+ // try shift in [-tol..+tol] and take best alignment
+ let bestCorr = 0, bestShift = 0;
+ for (let shift = -tol; shift <= tol; shift++) {
+ const start = b + shift;
+ if (start < 0 || start + samplesPerChirp > n) continue;
+ let dot = 0, s2 = 0, t2 = 0;
+ for (let i = 0; i < samplesPerChirp; i++) {
+ const sr = re[start + i], si = im[start + i];
+ const tr = template_re[i], ti = template_im[i];
+ dot += sr * tr + si * ti;
+ s2 += sr*sr + si*si;
+ t2 += tr*tr + ti*ti;
+ }
+ const denom = Math.sqrt(s2 * t2) || 1e-12;
+ const corr = Math.abs(dot) / denom;
+ if (corr > bestCorr) { bestCorr = corr; bestShift = shift; }
+ }
+ if (bestCorr > DETECTION_CONSTANTS.TEMPLATE_VALIDATION_THRESHOLD) {
+ goodBoundaries.push(b + bestShift);
+ }
+ }
+ 
+ return goodBoundaries;
+}
+// Tiered Detection Strategy with optional override
+function detectChirpBoundaries(re, im, params) {
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ const expectedChirps = Math.floor(re.length / samplesPerChirp);
+ 
+ // Manual override if specified
+ if (params.sync_method && params.sync_method !== 'auto') {
+ self.postMessage({ type: 'progress', percent: 10, msg: \`Using \${params.sync_method} method...\` });
+ 
+ let result;
+ switch(params.sync_method) {
+ case 'phase':
+ result = detectChirpsByPhaseReset(re, im, params);
+ break;
+ case 'energy':
+ result = detectChirpsByEnergy(re, im, params);
+ break;
+ case 'template':
+ result = detectChirpsByTemplate(re, im, params);
+ break;
+ default:
+ result = detectChirpsByPhaseReset(re, im, params);
+ }
+ 
+ // Validate boundaries for template method
+ if (params.sync_method === 'template') {
+ result.boundaries = validateChirpBoundaries(re, im, result.boundaries, params);
+ }
+ 
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 30, 
+ msg: \`\${params.sync_method} method: found \${result.boundaries.length} boundaries\` 
+ });
+ return result;
+ }
+ 
+ // AUTO TIERED STRATEGY
+ self.postMessage({ type: 'progress', percent: 10, msg: 'Tiered sync: Phase Reset Detection...' });
+ 
+ // PRIMARY: Phase Reset Detection
+ let result = detectChirpsByPhaseReset(re, im, params);
+ const detectedChirps = Math.max(0, result.boundaries.length - 1);
+ const chirpRatio = detectedChirps / Math.max(1, expectedChirps);
+ 
+ // Quality check for phase reset
+ const phaseResetValid = (
+ chirpRatio >= DETECTION_CONSTANTS.MIN_CHIRP_RATIO && 
+ chirpRatio <= DETECTION_CONSTANTS.MAX_CHIRP_RATIO && 
+ result.confidence > 0.5
+ );
+ 
+ if (phaseResetValid) {
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 30, 
+ msg: \`Phase Reset successful: \${detectedChirps} chirps (confidence: \${(result.confidence*100).toFixed(1)}%)\` 
+ });
+ return result;
+ }
+ 
+ // FALLBACK: Energy Envelope
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 15, 
+ msg: \`Phase Reset failed (ratio: \${chirpRatio.toFixed(2)}), trying Energy Envelope...\` 
+ });
+ 
+ result = detectChirpsByEnergy(re, im, params);
+ const energyChirps = Math.max(0, result.boundaries.length - 1);
+ const energyRatio = energyChirps / Math.max(1, expectedChirps);
+ 
+ const energyValid = (
+ energyRatio >= DETECTION_CONSTANTS.MIN_CHIRP_RATIO && 
+ energyRatio <= DETECTION_CONSTANTS.MAX_CHIRP_RATIO && 
+ result.confidence > 0.3
+ );
+ 
+ if (energyValid) {
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 30, 
+ msg: \`Energy Envelope successful: \${energyChirps} chirps (period: \${result.detectedPeriod} samples)\` 
+ });
+ return result;
+ }
+ 
+ // LAST RESORT: Template Matching
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 20, 
+ msg: \`Energy Envelope failed (ratio: \${energyRatio.toFixed(2)}), falling back to Template Matching...\` 
+ });
+ 
+ result = detectChirpsByTemplate(re, im, params);
+ 
+ // Validate template boundaries
+ result.boundaries = validateChirpBoundaries(re, im, result.boundaries, params);
+ 
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 30, 
+ msg: \`Template Matching: found \${result.boundaries.length} boundaries (post-validation)\` 
+ });
+ 
+ return result;
+}
+// Validation trigger system
+function needsSyncValidation(result, params, prevResults) {
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ const expectedChirps = Math.floor(params.num_chirps || (result.boundaries.length - 1));
+ 
+ // Check 1: Too few chirps detected
+ if (result.boundaries.length < Math.max(3, expectedChirps * 0.5)) {
+ return true;
+ }
+ 
+ // Check 2: Timing jitter (if we have previous results)
+ if (prevResults && prevResults.boundaries && prevResults.boundaries.length > 2) {
+ const currentIntervals = [];
+ for (let i = 1; i < result.boundaries.length; i++) {
+ currentIntervals.push(result.boundaries[i] - result.boundaries[i-1]);
+ }
+ 
+ const meanInterval = currentIntervals.reduce((a, b) => a + b) / currentIntervals.length;
+ const jitter = currentIntervals.reduce((a, b) => a + Math.abs(b - meanInterval), 0) / currentIntervals.length;
+ 
+ if (jitter > samplesPerChirp * 0.1) { // More than 10% jitter
+ return true;
+ }
+ }
+ 
+ // Check 3: Confidence too low
+ if (result.confidence < 0.4) {
+ return true;
+ }
+ 
+ // Check 4: Method is fallback (energy or template) - suggest validation
+ if (result.method !== 'phase_reset') {
+ return true;
+ }
+ 
+ return false;
+}
+self.onmessage = async function(e) {
+ try {
+ const { buffer, params } = e.data;
+ self.postMessage({ type: 'progress', percent: 1, msg: 'Worker received data' });
+ 
+ const raw = new Int16Array(buffer);
+ 
+ self.postMessage({ type: 'progress', percent: 5, msg: 'Converting IQ to float' });
+ const iq = int16IQToFloat(raw, params.adc_bits);
+ 
+ // CHIRP BOUNDARY DETECTION
+ const syncResult = detectChirpBoundaries(iq.re, iq.im, params);
+ 
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 35, 
+ msg: \`Sync complete: \${syncResult.boundaries.length} boundaries via \${syncResult.method}\` 
+ });
+ 
+ // Check if validation is needed
+ const validationNeeded = needsSyncValidation(syncResult, params, null);
+ if (validationNeeded && syncResult.method !== 'template_matching') {
+ self.postMessage({ 
+ type: 'progress', 
+ percent: 40, 
+ msg: 'Low confidence sync - running template matching validation...' 
+ });
+ 
+ const validationResult = detectChirpsByTemplate(iq.re, iq.im, params);
+ validationResult.boundaries = validateChirpBoundaries(iq.re, iq.im, validationResult.boundaries, params);
+ 
+ if (validationResult.confidence > syncResult.confidence * 1.2) {
+ // Template matching gives better result
+ syncResult.method = 'template_matching (validated)';
+ syncResult.boundaries = validationResult.boundaries;
+ syncResult.confidence = validationResult.confidence;
+ }
+ }
+ 
+ // Create visualization data for detected chirps
+ const samplesPerChirp = Math.round(params.fs_Hz * params.Tch_s); // Fixed: Math.round
+ const n = iq.re.length;
+ 
+ // Generate signal magnitude plot (subsampled for performance)
+ const plotPoints = [];
+ const plotSize = Math.min(500, n);
+ const step = Math.max(1, Math.floor(n / plotSize));
+ 
+ for (let i = 0; i < n; i += step) {
+ const magnitude = Math.sqrt(iq.re[i] * iq.re[i] + iq.im[i] * iq.im[i]);
+ plotPoints.push({
+ x: i,
+ y: magnitude * 100 // Scale for visibility
+ });
+ }
+ 
+ // Mark chirp boundaries
+ const boundaryMarkers = [];
+ for (const boundary of syncResult.boundaries) {
+ if (boundary < n) {
+ const magnitude = Math.sqrt(iq.re[boundary] * iq.re[boundary] + iq.im[boundary] * iq.im[boundary]);
+ boundaryMarkers.push({
+ x: boundary,
+ y: magnitude * 100,
+ method: syncResult.method
+ });
+ }
+ }
+ 
+ // Prepare results
+ self.postMessage({ type: 'progress', percent: 95, msg: 'Finalizing results...' });
+ 
+ const results = {
+ // Chirp detection results
+ sync_offset: syncResult.boundaries[0] || 0,
+ sync_method: syncResult.method,
+ sync_confidence: syncResult.confidence,
+ chirp_boundaries: syncResult.boundaries,
+ num_chirps_detected: Math.max(0, syncResult.boundaries.length - 1),
+ 
+ // Visualization data
+ signal_plot: plotPoints,
+ boundary_markers: boundaryMarkers,
+ samples_per_chirp_expected: samplesPerChirp,
+ samples_per_chirp_actual: syncResult.boundaries.length > 1 ? 
+ (syncResult.boundaries[1] - syncResult.boundaries[0]) : samplesPerChirp,
+ 
+ // Placeholder for next steps
+ range_profile: null,
+ targets: [],
+ rdm_ null,
+ processing_complete: false,
+ next_step: "chirp_extraction_and_range_fft",
+ needs_validation: validationNeeded
+ };
+ 
+ self.postMessage({ type: 'progress', percent: 100, msg: 'Chirp detection complete!' });
+ self.postMessage({ type: 'done', results });
+ 
+ } catch (err) {
+ self.postMessage({ type: 'error', error: String(err.stack || err) });
+ }
+};
+`;
+const blob = new Blob([workerCode], { type: "application/javascript" });
+AppState.workerURL = URL.createObjectURL(blob);
+AppState.worker = new Worker(AppState.workerURL);
+AppState.worker.onmessage = function(e) {
+const m = e.data;
+if (m.type === 'done') {
+displayResults(m.results);
+} else if (m.type === 'progress') {
+updateProgress(m.percent);
+if (m.msg) logStatus(`[worker] ${m.msg}`);
+} else if (m.type === 'error') {
+logStatus('[worker error] ' + m.error);
+alert('DSP worker error: ' + m.error);
+document.getElementById('statusIndicator').className = 'status-indicator ready';
+document.getElementById('progressBar').style.display = 'none';
+}
+};
+}
+window.addEventListener('unload', function() {
+if (AppState.worker) {
+AppState.worker.terminate();
+}
+if (AppState.workerURL) {
+URL.revokeObjectURL(AppState.workerURL);
+}
+});
+logStatus('Blind Detection Simulator Ready');
+logStatus('GUI connected to DSP backend');
+</script>
+</body>
+</html>
